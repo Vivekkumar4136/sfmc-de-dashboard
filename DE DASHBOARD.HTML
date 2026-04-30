@@ -1,0 +1,397 @@
+<meta charset="UTF-8">
+<title>DE Dashboard</title>
+<style>
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f4f6f8;
+    overflow-x: hidden;
+  }
+
+  h1 {
+    text-align: center;
+    color: #222;
+    margin: 30px 0 10px;
+  }
+
+  .filters {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 0 15px;
+    margin-bottom: 20px;
+    white-space: nowrap;
+  }
+
+  .filters input[type="text"],
+  .filters input[type="date"],
+  .filters select {
+    padding: 8px 10px;
+    width: 180px;
+    min-width: 160px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.3s ease;
+  }
+
+  .filters input[type="text"]:focus,
+  .filters input[type="date"]:focus,
+  .filters select:focus {
+    border-color: #007acc;
+    outline: none;
+  }
+
+  .filters button {
+    padding: 8px 15px;
+    background-color: #007bff;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  .filters button.clear-btn {
+    background-color: #6c757d;
+  }
+
+  .table-container {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    padding: 0 10px 40px;
+  }
+
+  table {
+    width: 100%;
+    max-width: 1200px;
+    border-collapse: collapse;
+    background-color: #fff;
+    table-layout: fixed;
+    word-wrap: break-word;
+  }
+
+  th, td {
+    border: 1px solid #ddd;
+    padding: 12px;
+    text-align: left;
+    word-break: break-word;
+  }
+
+  th {
+    background-color: #007bff;
+    color: white;
+    font-weight: 600;
+  }
+
+  tr:hover {
+    background-color: #f1f1f1;
+  }
+
+  @media screen and (max-width: 768px) {
+    .filters {
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .filters input[type="text"],
+    .filters input[type="date"],
+    .filters select {
+      width: 90%;
+    }
+  }
+</style>
+
+<h1>DATA EXTENSION DASHBOARD</h1>
+<br>
+
+<div class="filters">
+  <input type="text" id="nameFilter" placeholder="Search by DE Name">
+  <input type="text" id="keyFilter" placeholder="Search by Customer Key">
+  <select id="folderFilter">
+    <option value="">All Folders</option>
+    <option>My Subscribers</option>
+    <option>Data Extensions</option>
+    <option>Administration</option>
+    <option>Campaigns</option>
+    <option>DataPrivacy</option>
+    <option>Dev Folder</option>
+    <option>Email_Sends_Reporting</option>
+    <option>Hashed Data</option>
+    <option>Master</option>
+    <option>Data Loss Backup</option>
+    <option>OLD_Core DEs</option>
+    <option>Reporting</option>
+    <option>Staging</option>
+    <option>Historical</option>
+    <option>Rejected</option>
+    <option>Sync</option>
+    <option>Universal Data Segments</option>
+    <option>POC</option>
+    <option>QA Environment</option>
+    <option>SendLog</option>
+    <option>Newsletter</option>
+    <option>Change Requests</option>
+    <option>Data Load</option>
+    <option>Spam Exclusion List</option>
+    <option>Test</option>
+    <option>Testing</option>
+    <option>Cloudpage</option>
+    <option>Demo</option>
+    <option>Hackathon</option>
+    <option>IP Warming Plan</option>
+    <option>ValidateEmail</option>
+    <option>Training</option>
+    <option>My Data Relationships</option>
+    <option>Recycle Bin</option>
+    <option>Salesforce Data Extensions</option>
+    <option>Data Filters</option>
+    <option>Shared Items</option>
+  </select>
+  <input type="date" id="startDateFilter">
+  <input type="date" id="endDateFilter">
+  <select id="rowsPerPageSelect" onchange="changeRowsPerPage()">
+    <option value="5">5 Items / page</option>
+    <option value="10" selected>10 Items / page</option>
+    <option value="20">20 Items / page</option>
+    <option value="50">50 Items / page</option>
+  </select>
+  <button onclick="applyFilters()">Search</button>
+  <button onclick="clearFilters()" class="clear-btn">Clear Filters</button>
+</div>
+<br>
+
+<div class="table-container">
+  <table id="deTable">
+    <thead>
+      <tr>
+        <th>DE Name</th>
+        <th>Customer Key</th>
+        <th>Folder Path</th>
+        <th>Created Date</th>
+        <th>Modified Date</th>
+        <th>Record Count</th>
+      </tr>
+    </thead>
+
+    <script runat="server">
+      Platform.Load("Core", "1.1.5");
+      var api = new Script.Util.WSProxy();
+
+      function getFolderPathMap() {
+        var folderMap = {};
+        var parentMap = {};
+        var pathMap = {};
+        var more = true;
+        var reqID = null;
+
+        while (more) {
+          var options = reqID ? { ContinueRequest: reqID } : {};
+          var resp = api.retrieve("DataFolder", ["ID", "Name", "ParentFolder.ID"], {
+            Property: "ContentType",
+            SimpleOperator: "equals",
+            Value: "dataextension"
+          }, { BatchSize: 200 }, options);
+
+          if (resp && resp.Results) {
+            for (var i = 0; i < resp.Results.length; i++) {
+              var folder = resp.Results[i];
+              folderMap[folder.ID] = folder.Name;
+              parentMap[folder.ID] = folder.ParentFolder ? folder.ParentFolder.ID : null;
+            }
+            more = resp.HasMoreRows;
+            reqID = resp.RequestID;
+          } else {
+            more = false;
+          }
+        }
+
+        for (var id in folderMap) {
+          var path = folderMap[id];
+          var parentId = parentMap[id];
+          while (parentId && folderMap[parentId]) {
+            path = folderMap[parentId] + "/" + path;
+            parentId = parentMap[parentId];
+          }
+          pathMap[id] = path;
+        }
+
+        return pathMap;
+      }
+
+      try {
+        var folderPathMap = getFolderPathMap();
+        var cols = ["Name", "CustomerKey", "CategoryID", "CreatedDate", "ModifiedDate"];
+        var opts = { BatchSize: 300 };
+        var props = { QueryAllAccounts: false };
+        var more = true;
+        var reqID = null;
+
+        while (more) {
+          if (reqID) props.ContinueRequest = reqID;
+
+          var res = api.retrieve("DataExtension", cols, null, opts, props);
+          more = res.HasMoreRows;
+          reqID = res.RequestID;
+
+          if (res && res.Results) {
+            for (var j = 0; j < res.Results.length; j++) {
+              var de = res.Results[j];
+              if (de.Name.indexOf("QueryStudioResults") === 0) continue;
+
+              var folderPath = folderPathMap[de.CategoryID] || "Unknown";
+              var recordCount = Platform.Function.TreatAsContent('%' + '%=DataExtensionRowCount("' + de.Name + '")=' + '%' + '%');
+
+              Write("<tr>");
+              Write("<td>" + de.Name + "</td>");
+              Write("<td>" + de.CustomerKey + "</td>");
+              Write("<td>" + folderPath + "</td>");
+              Write("<td>" + de.CreatedDate + "</td>");
+              Write("<td>" + de.ModifiedDate + "</td>");
+              Write("<td>" + recordCount + "</td>");
+              Write("</tr>");
+            }
+          }
+        }
+      } catch (e) {
+        Write("<tr><td colspan='6'>Error: " + e.message + "</td></tr>");
+      }
+    </script>
+
+  </table>
+</div>
+
+<div style="text-align: center; padding-bottom: 30px;">
+  <button id="prevBtn" onclick="prevPage()">Previous</button>
+  <span id="pageInfo" style="margin: 0 15px;"></span>
+  <button id="nextBtn" onclick="nextPage()">Next</button><br><br>
+  <input type="number" id="pageInput" placeholder="Go to page" style="width: 100px; padding: 5px;">
+  <button onclick="goToPage()">Go</button>
+</div>
+
+<script>
+  let currentPage = 1;
+  let rowsPerPage = 10;
+  let filteredRows = [];
+
+  function applyFilters() {
+    const nameVal = document.getElementById("nameFilter").value.toLowerCase();
+    const keyVal = document.getElementById("keyFilter").value.toLowerCase();
+    const folderVal = document.getElementById("folderFilter").value.toLowerCase();
+    const startDateVal = document.getElementById("startDateFilter").value;
+    const endDateVal = document.getElementById("endDateFilter").value;
+
+    const allRows = Array.from(document.querySelectorAll("#deTable tbody tr"));
+
+    filteredRows = allRows.filter(row => {
+      const cells = row.getElementsByTagName("td");
+      const name = cells[0]?.textContent?.toLowerCase() || "";
+      const key = cells[1]?.textContent?.toLowerCase() || "";
+      const folder = cells[2]?.textContent?.toLowerCase() || "";
+      const createdDate = cells[3]?.textContent || "";
+
+      const matchName = name.includes(nameVal);
+      const matchKey = key.includes(keyVal);
+      const matchFolder = folderVal === "" || folder.includes(folderVal);
+
+      let matchDate = true;
+      if (startDateVal || endDateVal) {
+        const createdDateObj = new Date(createdDate);
+        if (startDateVal) {
+          const startDate = new Date(startDateVal);
+          matchDate = matchDate && createdDateObj >= startDate;
+        }
+        if (endDateVal) {
+          const endDate = new Date(endDateVal);
+          matchDate = matchDate && createdDateObj <= endDate;
+        }
+      }
+
+      return matchName && matchKey && matchFolder && matchDate;
+    });
+
+    currentPage = 1;
+    showPage(currentPage);
+  }
+
+  function clearFilters() {
+    document.getElementById("nameFilter").value = "";
+    document.getElementById("keyFilter").value = "";
+    document.getElementById("folderFilter").value = "";
+    document.getElementById("startDateFilter").value = "";
+    document.getElementById("endDateFilter").value = "";
+    document.getElementById("pageInput").value = "";
+
+    const allRows = Array.from(document.querySelectorAll("#deTable tbody tr"));
+    filteredRows = allRows;
+    currentPage = 1;
+    showPage(currentPage);
+  }
+
+  function showPage(page) {
+    const totalPages = Math.ceil(filteredRows.length / rowsPerPage);
+    if (page < 1) page = 1;
+    if (page > totalPages) page = totalPages;
+
+    document.getElementById("pageInfo").textContent =
+      `Page ${page} of ${totalPages || 1} | Items ${((page - 1) * rowsPerPage) + 1}-${Math.min(page * rowsPerPage, filteredRows.length)} of ${filteredRows.length}`;
+
+    document.querySelectorAll("#deTable tbody tr").forEach(row => row.style.display = "none");
+
+    filteredRows.forEach((row, index) => {
+      if (index >= (page - 1) * rowsPerPage && index < page * rowsPerPage) {
+        row.style.display = "";
+      }
+    });
+
+    document.getElementById("prevBtn").style.display = page === 1 ? "none" : "inline-block";
+    document.getElementById("nextBtn").style.display = page === totalPages ? "none" : "inline-block";
+  }
+
+  function prevPage() {
+    if (currentPage > 1) {
+      currentPage--;
+      showPage(currentPage);
+    }
+  }
+
+  function nextPage() {
+    const totalPages = Math.ceil(filteredRows.length / rowsPerPage);
+    if (currentPage < totalPages) {
+      currentPage++;
+      showPage(currentPage);
+    }
+  }
+
+  function changeRowsPerPage() {
+    rowsPerPage = parseInt(document.getElementById("rowsPerPageSelect").value);
+    currentPage = 1;
+    showPage(currentPage);
+  }
+
+  function goToPage() {
+    const pageInput = parseInt(document.getElementById("pageInput").value);
+    const totalPages = Math.ceil(filteredRows.length / rowsPerPage);
+    if (!isNaN(pageInput) && pageInput >= 1 && pageInput <= totalPages) {
+      currentPage = pageInput;
+      showPage(currentPage);
+    }
+  }
+
+  window.onload = function () {
+    const allRows = Array.from(document.querySelectorAll("#deTable tbody tr"));
+    filteredRows = allRows;
+    rowsPerPage = parseInt(document.getElementById("rowsPerPageSelect").value);
+    showPage(currentPage);
+  };
+</script>
