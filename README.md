@@ -97,4 +97,11 @@ sfmc-de-dashboard/
 - Onboard new team members — gives instant visibility into BU structure
 
 
+Author
+Built by an SFMC Developer as a reusable internal reporting tool.
+If this helped you, leave a star on the repo and connect on LinkedIn!
+
+
+License
+MIT License — free to use, modify, and distribute.
 
